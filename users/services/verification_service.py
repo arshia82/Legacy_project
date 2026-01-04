@@ -16,6 +16,10 @@ SUBMITTED = "submitted"
 APPROVED = "approved"
 REJECTED = "rejected"
 
+from users.services.business_rules import (
+    generate_trust_token,
+    validate_trust_token,
+) 
 
 class VerificationService:
     """

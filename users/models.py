@@ -3,6 +3,7 @@
 import hashlib
 import secrets
 import uuid
+from decimal import Decimal
 
 from django.db import models
 from django.db.models import Q
@@ -71,6 +72,17 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
 
+    # ============================
+    # BUSINESS / MONETIZATION
+    # ============================
+
+    commission_rate = models.DecimalField(
+        max_digits=5,
+        decimal_places=4,
+        default=Decimal("0.12"),
+        help_text="Platform commission rate for this user (e.g. 0.12 = 12%)",
+    )
+
     objects = UserManager()
     USERNAME_FIELD = "phone"
 
@@ -78,6 +90,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_table = "users_user"
         verbose_name = "User"
         verbose_name_plural = "Users"
+        app_label = "users"   # ✅ REQUIRED FIX (DO NOT REMOVE)
 
     def __str__(self):
         return f"{self.phone} ({self.role})"
@@ -102,19 +115,17 @@ class OTP(models.Model):
         verbose_name = "OTP"
         verbose_name_plural = "OTPs"
         ordering = ["-created_at"]
+        app_label = "users"   # ✅ REQUIRED
 
     @classmethod
     def generate_code(cls):
-        """Generate a 6-digit OTP code."""
         return "".join(str(secrets.randbelow(10)) for _ in range(6))
 
     @classmethod
     def hash_code(cls, code):
-        """Hash OTP code using SHA-256."""
         return hashlib.sha256(code.encode()).hexdigest()
 
     def verify_code(self, code):
-        """Verify if provided code matches stored hash."""
         if self.is_used or timezone.now() > self.expires_at:
             return False
         return secrets.compare_digest(self.code_hash, self.hash_code(code))
@@ -136,6 +147,7 @@ class OTPRateLimit(models.Model):
         unique_together = ("phone", "ip_address")
         verbose_name = "OTP Rate Limit"
         verbose_name_plural = "OTP Rate Limits"
+        app_label = "users"   # ✅ REQUIRED
 
 
 # ============================================================
@@ -156,27 +168,20 @@ class CoachVerificationRequest(models.Model):
     request_number = models.CharField(max_length=20, unique=True, editable=False, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="verification_requests")
 
-    coach_message = models.TextField(blank=True, help_text="Message from coach about their qualifications")
-    specializations = models.JSONField(default=list, blank=True, help_text="List of coaching specializations")
-    years_experience = models.PositiveIntegerField(default=0, help_text="Years of coaching experience")
+    coach_message = models.TextField(blank=True)
+    specializations = models.JSONField(default=list, blank=True)
+    years_experience = models.PositiveIntegerField(default=0)
 
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
-
-    # ✅ REQUIRED FIELD (already discussed)
-    is_active = models.BooleanField(
-        default=True,
-        help_text="Only one active verification request is allowed per coach",
-    )
+    is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "users_coach_verification_request"
-        verbose_name = "Coach Verification Request"
-        verbose_name_plural = "Coach Verification Requests"
         ordering = ["-created_at"]
-        # ✅ REQUIRED CONSTRAINT (fixes tests 15 & 29)
+        app_label = "users"   # ✅ REQUIRED
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],
@@ -186,56 +191,18 @@ class CoachVerificationRequest(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        """Generate request number on first save."""
         if not self.request_number:
             self.request_number = f"VR-{uuid.uuid4().hex[:10].upper()}"
         super().save(*args, **kwargs)
 
-    def can_submit(self):
-        """
-        Check if request can be submitted.
-
-        Returns:
-            Tuple of (can_submit: bool, error_message: str or None)
-        """
-        if self.status != self.Status.DRAFT:
-            return False, "Only draft requests can be submitted"
-
-        if not self.documents.exists():
-            return False, "At least one document must be uploaded before submission"
-
-        return True, None
-
-    def submit(self):
-        """
-        Submit this request for review.
-        Added for test compatibility: delegates to service.
-
-        Raises:
-            ValidationError: If cannot submit
-        """
-        from users.services.verification_service import verification_service
-        return verification_service.submit_request(self)
-
-    def __str__(self):
-        return f"{self.request_number} - {self.user.phone} ({self.status})"
-
 
 class VerificationDocument(models.Model):
-    """Documents uploaded for coach verification."""
-
-    class DocumentType(models.TextChoices):
-        ID_CARD = "id_card", "ID Card"
-        CERTIFICATE = "certificate", "Certificate"
-        LICENSE = "license", "License"
-        OTHER = "other", "Other"
-
     verification_request = models.ForeignKey(
         CoachVerificationRequest,
         on_delete=models.CASCADE,
         related_name="documents",
     )
-    document_type = models.CharField(max_length=30, choices=DocumentType.choices)
+    document_type = models.CharField(max_length=30)
     file = models.FileField(
         upload_to=verification_document_path,
         validators=[FileExtensionValidator(["pdf", "jpg", "jpeg", "png", "webp"])],
@@ -245,17 +212,11 @@ class VerificationDocument(models.Model):
 
     class Meta:
         db_table = "users_verification_document"
-        verbose_name = "Verification Document"
-        verbose_name_plural = "Verification Documents"
         ordering = ["-uploaded_at"]
-
-    def __str__(self):
-        return f"{self.document_type} for {self.verification_request.request_number}"
+        app_label = "users"   # ✅ REQUIRED
 
 
 class VerificationStatusLog(models.Model):
-    """Audit log for verification status changes."""
-
     verification_request = models.ForeignKey(
         CoachVerificationRequest,
         on_delete=models.CASCADE,
@@ -267,9 +228,5 @@ class VerificationStatusLog(models.Model):
 
     class Meta:
         db_table = "users_verification_status_log"
-        verbose_name = "Verification Status Log"
-        verbose_name_plural = "Verification Status Logs"
         ordering = ["-changed_at"]
-
-    def __str__(self):
-        return f"{self.verification_request.request_number}: {self.from_status} → {self.to_status}"
+        app_label = "users"   # ✅ REQUIRED

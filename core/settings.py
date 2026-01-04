@@ -12,7 +12,14 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import os
+from django.conf import settings
+from django.db import migrations, models
 
+class Migration(migrations.Migration):
+
+    dependencies = [
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
 # ✅ خواندن فایل .env
 from dotenv import load_dotenv
 
@@ -46,6 +53,7 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 # =============================================================================
 
 INSTALLED_APPS = [
+    "myfita.apps.backend.users.apps.UsersConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -55,7 +63,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
-    "users.apps.UsersConfig",
     "program_delivery",
     "programs",
     "program_presets",
@@ -287,6 +294,14 @@ RATE_LIMITS = {
     "api_user": {"limit": 60, "window": 60},          # 60 per minute
 }
 
+
+
+
+
+# ✅ ADD THIS
+MIGRATION_MODULES = {
+    "users": "users.migrations",
+}
 # =============================================================================
 # TESTING MODE
 # =============================================================================

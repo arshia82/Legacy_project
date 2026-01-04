@@ -1,0 +1,7 @@
+pytest
+pytest-django
+pytest-xdist
+bandit
+safety
+requests
+colorama

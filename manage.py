@@ -3,7 +3,19 @@
 import os
 import sys
 from pathlib import Path
+import os
+import sys
+from pathlib import Path
 
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE_DIR.parent.parent  # points to Legacy-project/myfita
+sys.path.append(str(PROJECT_ROOT))
+
+BASE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..")
+)
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 def main():
     """Run administrative tasks."""

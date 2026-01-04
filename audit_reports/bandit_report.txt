@@ -1,0 +1,125 @@
+Run started:2026-01-02 23:59:46.915343+00:00
+
+Test results:
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b311-random
+   Location: .\apps\users\models.py:23:18
+22	    def generate_code():
+23	        return f"{random.randint(100000, 999999)}"
+24	
+
+--------------------------------------------------
+>> Issue: [B106:hardcoded_password_funcarg] Possible hardcoded password: 'StrongPass123'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b106_hardcoded_password_funcarg.html
+   Location: .\apps\users\tests\test_auth_security.py:16:20
+15	        self.client = APIClient()
+16	        self.user = User.objects.create_user(
+17	            phone="09120000000", password="StrongPass123"
+18	        )
+19	
+
+--------------------------------------------------
+>> Issue: [B106:hardcoded_password_funcarg] Possible hardcoded password: 'Pass1234'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b106_hardcoded_password_funcarg.html
+   Location: .\apps\users\tests\test_verification_flow.py:16:21
+15	        self.client = APIClient()
+16	        self.coach = User.objects.create_user(
+17	            phone="09121111111", password="Pass1234", is_coach=True
+18	        )
+19	        self.client.force_authenticate(self.coach)
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'dev-only-unsafe-key'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b105_hardcoded_password_string.html
+   Location: .\config\settings\base.py:7:13
+6	
+7	SECRET_KEY = "dev-only-unsafe-key"
+8	
+
+--------------------------------------------------
+>> Issue: [B105:hardcoded_password_string] Possible hardcoded password: 'dev-only-unsafe-key'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b105_hardcoded_password_string.html
+   Location: .\config\settings\settings\base.py:7:13
+6	
+7	SECRET_KEY = "dev-only-unsafe-key"
+8	
+
+--------------------------------------------------
+>> Issue: [B106:hardcoded_password_funcarg] Possible hardcoded password: 'x'
+   Severity: Low   Confidence: Medium
+   CWE: CWE-259 (https://cwe.mitre.org/data/definitions/259.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b106_hardcoded_password_funcarg.html
+   Location: .\media_security\tests\test_streaming_security.py:6:11
+5	def test_expired_token_denied(client, django_user_model):
+6	    user = django_user_model.objects.create_user(username="c1", password="x", role="coach")
+7	    client.force_login(user)
+
+--------------------------------------------------
+>> Issue: [B101:assert_used] Use of assert detected. The enclosed code will be removed when compiling to optimised byte code.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/plugins/b101_assert_used.html
+   Location: .\media_security\tests\test_streaming_security.py:10:4
+9	    response = client.get("/api/media/1/stream/?token=bad&expires=1")
+10	    assert response.status_code in (403, 404)
+11	    
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b311-random
+   Location: .\run_killer_tests.py:136:18
+135	        for _ in range(20):
+136	            amt = random.randint(1, 100000)
+137	            self.assertEqual(
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b311-random
+   Location: .\run_killer_tests.py:144:26
+143	        for _ in range(10):
+144	            uid = ''.join(random.choices(string.digits, k=5))
+145	            self.assertIn(uid, generate_pdf(uid))
+
+--------------------------------------------------
+>> Issue: [B311:blacklist] Standard pseudo-random generators are not suitable for security/cryptographic purposes.
+   Severity: Low   Confidence: High
+   CWE: CWE-330 (https://cwe.mitre.org/data/definitions/330.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.2/blacklists/blacklist_calls.html#b311-random
+   Location: .\scripts\send_otp.py:10:15
+9	def generate_otp():
+10	    return str(random.randint(100000, 999999))
+11	
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 3329
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 10
+		Medium: 0
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 5
+		High: 5
+Files skipped (0):
