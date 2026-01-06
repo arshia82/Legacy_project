@@ -1,24 +1,25 @@
 # users/api/urls.py
-
 from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from .views import (
-    OTPSendView,
-    OTPVerifyView,
-    CoachVerificationView,
-    DocumentUploadView,
-    # ✅ ADDED: Import missing views for new routes
-    VerificationApproveView,
+    RequestOTPView,
+    VerifyOTPView,
+    SubmitVerificationRequestAPIView,
+    VerificationStatusAPIView,
 )
 
-app_name = 'users'
+app_name = "users"
 
 urlpatterns = [
-    # ... (Your existing paths unchanged) ...
-    
+    # OTP Authentication
+    path("otp/request/", RequestOTPView.as_view(), name="otp-request"),
+    path("otp/verify/", VerifyOTPView.as_view(), name="otp-verify"),
+
+    # Token refresh
+    path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+
     # Coach Verification
-    path('verification/', CoachVerificationView.as_view(), name='verification'),
-    path('verification/approve/', VerificationApproveView.as_view(), name='verification-approve'),  # ✅ ADDED: For test_admin_approve
-    path('verification/document/', DocumentUploadView.as_view(), name='verification-document'),  # ✅ ADDED: For test_upload_document
+    path("verification/submit/", SubmitVerificationRequestAPIView.as_view(), name="verification-submit"),
+    path("verification/status/", VerificationStatusAPIView.as_view(), name="verification-status"),
 ]

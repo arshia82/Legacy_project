@@ -1,38 +1,48 @@
-# core/urls.py
-"""
-Main URL Configuration - FIXED
-
-Kavenegar API Key:
-"""
-from kavenegar import *
-api = KavenegarAPI('6B78587A63766E58546B554549305A71685276414E5950506D687454776B43624744666C34647A6D3042593D')
-params = { 'sender' : '2000660110', 'receptor': '09031517191', 'message' :'.My FITA is AT YOUR SERVICE' }
+# FILE: myfita/apps/backend/core/urls.py
 
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+# --- ADDED: API Documentation imports ---
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularSwaggerView,
+    SpectacularRedocView,
+)
+# -----------------------------------------
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
+    path("api/auth/", include("users.api.urls")),
     
-    # All API routes under /api/auth/
-    path('api/auth/', include('users.api.urls')),
+    # --- ADDED: New API routes ---
+    # Programs
+    path("api/programs/", include("programs.api.urls")),
+    
+    # Program Delivery (PDF generation)
+    path("api/delivery/", include("program_delivery.api.urls")),
+    
+    # Billing & Payments
+    path("api/billing/", include("billing.api.urls")),
+    
+    # Matching (AI coach-athlete matching)
+    path("api/matching/", include("matching.api.urls")),
+    
+    # Search & Discovery
+    path("api/search/", include("search.api.urls")),
+    
+    # API Documentation (Swagger/ReDoc)
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
+    
+    # Health checks
+    path("health/", include("core.health_urls")),
+    # ------------------------------
 ]
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-# core/urls.py
-from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/auth/', include('users.api.urls')),
-]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

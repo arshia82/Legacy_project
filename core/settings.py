@@ -1,72 +1,61 @@
 # core/settings.py
-"""
-MY-FITA Platform Settings
-Production-ready configuration with PostgreSQL
-"""
-
 from pathlib import Path
 from datetime import timedelta
 import os
-# core/settings.py
-
-from pathlib import Path
-from datetime import timedelta
-import os
-from django.conf import settings
-from django.db import migrations, models
-
-class Migration(migrations.Migration):
-
-    dependencies = [
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-    ]
-# ✅ خواندن فایل .env
+import sys
 from dotenv import load_dotenv
 
+# =============================================================================
+# BASE DIR & ENV
+# =============================================================================
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# ✅ بارگذاری متغیرهای .env
-load_dotenv(BASE_DIR / '.env')
-
-# حالا می‌تونی از os.getenv استفاده کنی:
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "fallback-key")
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-
-# ... ادامه settings
-BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 # =============================================================================
 # SECURITY
 # =============================================================================
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-dev-key-change-in-production"
-)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("DJANGO_SECRET_KEY is not set")
 
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+ALLOWED_HOSTS = os.getenv(
+    "ALLOWED_HOSTS", "127.0.0.1,localhost"
+).split(",")
 
 # =============================================================================
 # APPLICATIONS
 # =============================================================================
 
 INSTALLED_APPS = [
-    "myfita.apps.backend.users.apps.UsersConfig",
+    # Django core
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Third-party
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    'drf_spectacular',  # Already exists
+
+    # Local apps (relative to backend/)
+    "users.apps.UsersConfig",
+    "billing.apps.BillingConfig",
     "program_delivery",
     "programs",
     "program_presets",
-    "billing",
+    
+    # --- ADDED: New apps for matching and search ---
+    "matching",
+    "search",
+    # -----------------------------------------------
 ]
 
 # =============================================================================
@@ -81,12 +70,10 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # Rate limiting (optional - uncomment when Redis is ready)
-    # "users.middleware.rate_limit.RateLimitMiddleware",
 ]
 
 # =============================================================================
-# AUTHENTICATION
+# AUTH
 # =============================================================================
 
 AUTH_USER_MODEL = "users.User"
@@ -123,7 +110,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "core.wsgi.application"
 
 # =============================================================================
-# DATABASE — POSTGRESQL (Changed from SQLite)
+# DATABASE — POSTGRESQL
 # =============================================================================
 
 DATABASES = {
@@ -131,25 +118,20 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "myfita_db"),
         "USER": os.getenv("POSTGRES_USER", "postgres"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
-        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
+        "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
-        "ATOMIC_REQUESTS": True,  # Prevents race conditions
-        "CONN_MAX_AGE": 600,  # Connection pooling
-        "OPTIONS": {
-            "connect_timeout": 10,
-        },
+        "CONN_MAX_AGE": 600,
+        "ATOMIC_REQUESTS": True,
+        "OPTIONS": {"connect_timeout": 10},
     }
 }
 
-# Test database configuration
-if "test" in os.sys.argv:
-    DATABASES["default"]["TEST"] = {
-        "NAME": "test_myfita_db",
-    }
+if not DATABASES["default"]["PASSWORD"]:
+    raise RuntimeError("POSTGRES_PASSWORD is not set")
 
 # =============================================================================
-# INTERNATIONALIZATION
+# I18N
 # =============================================================================
 
 LANGUAGE_CODE = "fa-ir"
@@ -158,7 +140,7 @@ USE_I18N = True
 USE_TZ = True
 
 # =============================================================================
-# STATIC & MEDIA FILES
+# STATIC & MEDIA
 # =============================================================================
 
 STATIC_URL = "/static/"
@@ -180,24 +162,19 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_THROTTLE_CLASSES": [
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-    ],
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/hour",
-        "user": "1000/hour",
-        "otp_send": "3/hour",
-        "otp_verify": "10/hour",
-    },
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
-    "EXCEPTION_HANDLER": "rest_framework.views.exception_handler",
+    
+    # --- ADDED: API documentation and pagination ---
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 20,
+    # -----------------------------------------------
 }
 
 # =============================================================================
-# JWT SETTINGS
+# JWT
 # =============================================================================
 
 SIMPLE_JWT = {
@@ -206,104 +183,287 @@ SIMPLE_JWT = {
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
-    "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
-    "USER_ID_FIELD": "id",
-    "USER_ID_CLAIM": "user_id",
 }
 
 # =============================================================================
-# OTP CONFIGURATION
+# TEST MODE
 # =============================================================================
 
-OTP_CONFIG = {
-    "TTL_SECONDS": 300,
-    "MAX_ATTEMPTS": 5,
-    "MAX_SENDS_PER_HOUR": 3,
-    "COOLDOWN_SECONDS": 60,
-    "CODE_LENGTH": 6,
+TESTING = "test" in sys.argv
+
+# =============================================================================
+# ADDED: DRF SPECTACULAR (API DOCUMENTATION)
+# =============================================================================
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "MY FITA API",
+    "DESCRIPTION": """
+    Persian web marketplace connecting verified coaches with athletes across Iran.
+    
+    **Business Plan Reference:**
+    - Platform commission on program sales (average 12% of GMV)
+    - B2B club packages (800,000 Toman per 90 users)
+    - AI-powered coach-athlete matching
+    - Secure messaging and call masking
+    - Payout workflows via Iranian PSPs
+    
+    **Core Features:**
+    - Coach & Athlete profiles
+    - Search & filter coaches
+    - Program purchase & delivery (PDF generation)
+    - Billing & commission management
+    - AI matching service
+    - Admin verification workflow (12-hour target)
+    """,
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/",
+    "SWAGGER_UI_SETTINGS": {
+        "deepLinking": True,
+        "persistAuthorization": True,
+        "displayOperationId": True,
+    },
+    "SERVERS": [
+        {"url": "http://127.0.0.1:8000", "description": "Development server"},
+        {"url": "https://api.myfita.ir", "description": "Production server"},
+    ],
 }
 
 # =============================================================================
-# KAVENEGAR SMS
+# ADDED: CACHING (For search and matching services)
 # =============================================================================
 
-KAVENEGAR = {
-    "API_KEY": os.getenv(
-        "KAVENEGAR_API_KEY",
-        "6B78587A63766E58546B554549305A71685276414E5950506D687454776B43624744666C34647A6D3042593D"
-    ),
-    "SENDER": "2000660110",
-}
-
-# =============================================================================
-# MY-FITA BUSINESS SETTINGS (from Business Plan)
-# =============================================================================
-
-MYFITA = {
-    "PLATFORM_COMMISSION_PERCENT": 12,  # Business Plan: 12% take rate
-    "VERIFICATION_SLA_HOURS": 12,  # Business Plan: 12-hour verification SLA
-    "ALLOW_UNVERIFIED_COACH_VISIBILITY": False,  # Business Plan: Trust-first
-    "COACH_WITHDRAWAL_REQUIRES_VERIFICATION": True,
-    "AI_ENABLED": False,  # Post-MVP feature
-}
-
-VERIFICATION_SETTINGS = {
-    "MAX_FILES_PER_REQUEST": 10,
-    "MAX_FILE_SIZE_MB": 5,
-    "ALLOWED_EXTENSIONS": ["pdf", "jpg", "jpeg", "png", "webp"],
-}
-
-# =============================================================================
-# REDIS CONFIGURATION
-# =============================================================================
-
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-
-REDIS_CONFIG = {
-    "host": REDIS_HOST,
-    "port": REDIS_PORT,
-    "db": REDIS_DB,
-    "decode_responses": True,
-    "socket_connect_timeout": 2,
-    "socket_timeout": 2,
-    "retry_on_timeout": True,
-    "health_check_interval": 30,
-}
-
-# Use Django cache as fallback when Redis is not available
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "unique-snowflake",
+        "OPTIONS": {
+            "MAX_ENTRIES": 1000,
+        }
     }
 }
 
+# Optional: Redis cache for production (uncomment when ready)
+# REDIS_URL = os.getenv("REDIS_URL", "")
+# if REDIS_URL:
+#     CACHES = {
+#         "default": {
+#             "BACKEND": "django_redis.cache.RedisCache",
+#             "LOCATION": REDIS_URL,
+#             "OPTIONS": {
+#                 "CLIENT_CLASS": "django_redis.client.DefaultClient",
+#             }
+#         }
+#     }
+
 # =============================================================================
-# RATE LIMITING
+# ADDED: LOGGING (For debugging and monitoring)
 # =============================================================================
 
-RATE_LIMITS = {
-    "otp_request": {"limit": 5, "window": 3600},      # 5 per hour
-    "otp_verify": {"limit": 10, "window": 600},       # 10 per 10 min
-    "login": {"limit": 10, "window": 900},            # 10 per 15 min
-    "api_global": {"limit": 100, "window": 60},       # 100 per minute
-    "api_user": {"limit": 60, "window": 60},          # 60 per minute
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{levelname}] {asctime} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+        "file": {
+            "class": "logging.FileHandler",
+            "filename": BASE_DIR / "logs" / "myfita.log",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "matching": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "search": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        "billing": {
+            "handlers": ["console"],
+            "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+    },
 }
 
+# =============================================================================
+# ADDED: MATCHING SERVICE CONFIGURATION
+# =============================================================================
 
-
-
-
-# ✅ ADD THIS
-MIGRATION_MODULES = {
-    "users": "users.migrations",
+# BP: "MY FITA's AI recommends a shortlist of matched coaches"
+MATCHING_CONFIG = {
+    # Minimum profile completion for matching
+    "MIN_ATHLETE_COMPLETION": 70,  # 70% profile completion required
+    "MIN_COACH_COMPLETION": 80,    # 80% profile completion required
+    
+    # Match scoring weights (must sum to 100)
+    "SCORE_WEIGHTS": {
+        "goal_specialization_match": 35,  # Primary alignment
+        "experience_level_match": 15,
+        "location_match": 15,
+        "price_fit": 15,
+        "coach_rating": 10,
+        "availability": 5,
+        "gender_preference": 5,
+    },
+    
+    # Cache settings
+    "CACHE_MATCH_RESULTS": True,
+    "CACHE_TTL_SECONDS": 3600,  # 1 hour
+    
+    # Result limits
+    "DEFAULT_MATCH_LIMIT": 20,
+    "MAX_MATCH_LIMIT": 50,
 }
+
 # =============================================================================
-# TESTING MODE
+# ADDED: SEARCH SERVICE CONFIGURATION
 # =============================================================================
 
-TESTING = "test" in os.sys.argv
+# BP: "coach athlete profiles, search filter"
+# BP: "capture high-intent organic search traffic"
+SEARCH_CONFIG = {
+    # Search result limits
+    "DEFAULT_PAGE_SIZE": 20,
+    "MAX_PAGE_SIZE": 50,
+    
+    # Text search
+    "MIN_QUERY_LENGTH": 2,
+    "MAX_QUERY_LENGTH": 255,
+    
+    # Autocomplete
+    "AUTOCOMPLETE_LIMIT": 10,
+    
+    # Popular searches
+    "POPULAR_SEARCH_MIN_COUNT": 5,  # Minimum searches to be "popular"
+    
+    # Saved searches per user
+    "MAX_SAVED_SEARCHES_PER_USER": 20,
+}
+
+# =============================================================================
+# ADDED: BILLING & COMMISSION CONFIGURATION
+# =============================================================================
+
+# BP: "platform commission on program sales (average 12% of GMV)"
+# BP: "payout workflows via Iranian PSPs"
+BILLING_CONFIG = {
+    # Commission rates
+    "DEFAULT_COMMISSION_RATE": 0.12,  # 12% platform take rate
+    "MIN_COMMISSION_RATE": 0.08,      # 8% minimum
+    "MAX_COMMISSION_RATE": 0.20,      # 20% maximum
+    
+    # Payout settings
+    "MIN_PAYOUT_AMOUNT": 100000,      # 100,000 Toman minimum
+    "PAYOUT_FREQUENCY_DAYS": 7,       # Weekly payouts
+    "PAYOUT_PROCESSING_HOURS": 48,    # 48-hour processing time
+    
+    # Trust token settings (anti-disintermediation)
+    "TOKEN_EXPIRY_HOURS": 72,         # 3 days
+    "TOKEN_MAX_USE_COUNT": 1,         # Single use
+    
+    # B2B club packages
+    "B2B_PACKAGE_BASE_PRICE": 800000,  # 800,000 Toman per 90 users
+    "B2B_PACKAGE_BASE_USERS": 90,
+}
+
+# =============================================================================
+# ADDED: ADMIN VERIFICATION WORKFLOW
+# =============================================================================
+
+# BP: "admin verification workflow aims for verified status within 12 hours"
+VERIFICATION_CONFIG = {
+    "TARGET_VERIFICATION_HOURS": 12,  # 12-hour target
+    "AUTO_REJECT_AFTER_DAYS": 30,     # Auto-reject after 30 days
+    "REQUIRED_DOCUMENTS": [
+        "national_id",
+        "certification",
+        "profile_photo"
+    ],
+    "ALLOWED_FILE_TYPES": ["pdf", "jpg", "jpeg", "png", "webp"],
+    "MAX_FILE_SIZE_MB": 5,
+}
+
+# =============================================================================
+# ADDED: SECURITY ENHANCEMENTS
+# =============================================================================
+
+# Session security
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+
+# CSRF security
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# Additional security headers (production)
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = "DENY"
+
+# =============================================================================
+# ADDED: RATE LIMITING (For API endpoints)
+# =============================================================================
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = [
+    "rest_framework.throttling.AnonRateThrottle",
+    "rest_framework.throttling.UserRateThrottle",
+]
+
+REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+    "anon": os.getenv("RATE_ANON", "100/hour"),
+    "user": os.getenv("RATE_USER", "1000/hour"),
+    "search": "60/minute",  # Search endpoint specific
+}
+
+# =============================================================================
+# ADDED: FILE UPLOAD SETTINGS
+# =============================================================================
+
+# BP: "program purchase delivery (PDF)"
+FILE_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 5242880  # 5MB
+
+# Allowed file extensions for program PDFs
+ALLOWED_PROGRAM_FILE_TYPES = ["pdf"]
+MAX_PROGRAM_FILE_SIZE_MB = 10
+
+# Allowed file extensions for verification documents
+ALLOWED_VERIFICATION_FILE_TYPES = ["pdf", "jpg", "jpeg", "png", "webp"]
+MAX_VERIFICATION_FILE_SIZE_MB = 5
+
+# =============================================================================
+# END OF ADDITIONS
+# =============================================================================

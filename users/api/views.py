@@ -1,184 +1,138 @@
 # users/api/views.py
-
-from django.shortcuts import get_object_or_404
-from django.http import JsonResponse
-from django.views import View
-
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from users.models import CoachVerificationRequest
-from users.services.verification_service import verification_service
+from ..models import CoachVerificationRequest
+from ..services.verification_service import VerificationService
+from ..services.otp_service import send_otp, verify_otp
 
 
 # ============================================================
-# OTP VIEWS (SAFE FALLBACK IMPLEMENTATION)
+# OTP VIEWS
 # ============================================================
 
-# ⚠️ otp_service هنوز کامل نیست یا API آن تغییر کرده
-# برای اینکه makemigrations / migrate / test بلاک نشود،
-# import را ایمن می‌کنیم
-try:
-    from users.services.otp_service import otp_service
-except Exception:
-    otp_service = None
+class RequestOTPView(APIView):
+    """Request OTP for phone authentication."""
+    permission_classes = [AllowAny]
 
-
-class OTPSendView(APIView):
-    """
-    Send OTP to phone number
-    """
     def post(self, request):
         phone = request.data.get("phone")
 
         if not phone:
             return Response(
-                {"detail": "Phone is required"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Phone number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if otp_service:
-            otp_service.send_otp(phone)
+        try:
+            send_otp(phone=phone, ip_address=self.get_client_ip(request))
+            return Response(
+                {"detail": "OTP sent successfully."},
+                status=status.HTTP_200_OK,
+            )
+        except Exception as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
 
-        return Response(
-            {"detail": "OTP sent"},
-            status=status.HTTP_200_OK
-        )
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR", "127.0.0.1")
 
 
-class OTPVerifyView(APIView):
-    """
-    Verify OTP code
-    """
+class VerifyOTPView(APIView):
+    """Verify OTP and return JWT tokens."""
+    permission_classes = [AllowAny]
+
     def post(self, request):
         phone = request.data.get("phone")
         code = request.data.get("code")
 
         if not phone or not code:
             return Response(
-                {"detail": "Phone and code are required"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "Phone and code are required."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if otp_service:
-            valid = otp_service.verify_otp(phone, code)
-            if not valid:
+        try:
+            result = verify_otp(
+                phone=phone,
+                code=code,
+                ip_address=self.get_client_ip(request),
+            )
+
+            if not result:
                 return Response(
-                    {"detail": "Invalid OTP"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"detail": "Invalid or expired OTP."},
+                    status=status.HTTP_401_UNAUTHORIZED,
                 )
 
-        return Response(
-            {"detail": "OTP verified"},
-            status=status.HTTP_200_OK
-        )
+            return Response(result, status=status.HTTP_200_OK)
+
+        except Exception as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+        if x_forwarded_for:
+            return x_forwarded_for.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR", "127.0.0.1")
 
 
 # ============================================================
-# COACH VERIFICATION VIEWS
+# VERIFICATION VIEWS
 # ============================================================
 
-class CoachVerificationView(APIView):
-    """
-    Create verification request or get current one
-    """
+class SubmitVerificationRequestAPIView(APIView):
+    """Submit coach verification request."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """
-        Create verification request
-        """
-        req = verification_service.create_request(request.user)
-        return Response(
-            {"id": req.id, "status": req.status},
-            status=status.HTTP_201_CREATED
-        )
+        service = VerificationService(user=request.user)
 
-    def get(self, request):
-        """
-        Get latest verification request
-        """
-        req = verification_service.get_coach_request(request.user)
-        if not req:
+        try:
+            verification_request = service.submit_request()
+        except Exception as exc:
             return Response(
-                {"detail": "No verification request"},
-                status=status.HTTP_404_NOT_FOUND
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response(
             {
-                "id": req.id,
-                "status": req.status,
+                "request_number": verification_request.request_number,
+                "status": verification_request.status,
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_201_CREATED,
         )
 
 
-class DocumentUploadView(APIView):
-    """
-    Upload verification document
-    """
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def post(self, request):
-        verification_id = request.data.get("verification_request")
-        document_type = request.data.get("document_type")
-        file = request.FILES.get("file")
-
-        if not verification_id or not file or not document_type:
-            return Response(
-                {"detail": "Missing fields"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        verification_request = get_object_or_404(
-            CoachVerificationRequest,
-            id=verification_id
-        )
-
-        verification_service.add_document(
-            verification_request,
-            file,
-            document_type,
-            user=request.user
-        )
-
-        return Response(
-            {"detail": "Document uploaded"},
-            status=status.HTTP_201_CREATED
-        )
-
-
-class VerificationApproveView(APIView):
-    """
-    Admin approves verification request
-    """
+class VerificationStatusAPIView(APIView):
+    """Get verification request status."""
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        verification_id = request.data.get("verification_request")
-
-        if not verification_id:
+    def get(self, request):
+        try:
+            req = CoachVerificationRequest.objects.filter(
+                user=request.user
+            ).latest("created_at")
+        except CoachVerificationRequest.DoesNotExist:
             return Response(
-                {"detail": "verification_request is required"},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "No verification request found"},
+                status=status.HTTP_404_NOT_FOUND,
             )
 
-        verification_request = get_object_or_404(
-            CoachVerificationRequest,
-            id=verification_id
-        )
-
-        verification_service.approve_request(
-            verification_request,
-            request.user
-        )
-
         return Response(
-            {"detail": "Verification approved"},
-            status=status.HTTP_200_OK
+            {
+                "request_number": req.request_number,
+                "status": req.status,
+            }
         )

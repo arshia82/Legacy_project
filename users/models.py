@@ -13,15 +13,15 @@ from django.contrib.auth.models import (
     AbstractBaseUser,
     PermissionsMixin,
     BaseUserManager,
+    Group,
+    Permission,
 )
-
 
 # ============================================================
 # HELPER FUNCTIONS (Must be at module level for migrations)
 # ============================================================
 
 def verification_document_path(instance, filename):
-    """Generate upload path for verification documents."""
     ext = filename.split(".")[-1]
     req_id = getattr(instance, "verification_request_id", "temp")
     return f"verifications/{req_id}/{uuid.uuid4().hex}.{ext}"
@@ -32,8 +32,6 @@ def verification_document_path(instance, filename):
 # ============================================================
 
 class UserManager(BaseUserManager):
-    """Custom manager for User model."""
-
     def create_user(self, phone, password=None, **extra_fields):
         if not phone:
             raise ValueError("Phone number is required")
@@ -55,8 +53,6 @@ class UserManager(BaseUserManager):
 # ============================================================
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """Custom user model using phone as primary identifier."""
-
     ROLE_CHOICES = [
         ("athlete", "Athlete"),
         ("coach", "Coach"),
@@ -67,9 +63,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=50, blank=True)
     last_name = models.CharField(max_length=50, blank=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="athlete")
+
     is_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+
     date_joined = models.DateTimeField(auto_now_add=True)
 
     # ============================
@@ -80,17 +78,30 @@ class User(AbstractBaseUser, PermissionsMixin):
         max_digits=5,
         decimal_places=4,
         default=Decimal("0.12"),
-        help_text="Platform commission rate for this user (e.g. 0.12 = 12%)",
+        help_text="Platform commission rate (0.12 = 12%)",
+    )
+
+    # ✅ EXPLICIT M2M FIELDS (CRITICAL FIX)
+    groups = models.ManyToManyField(
+        Group,
+        blank=True,
+        related_name="users",
+    )
+    user_permissions = models.ManyToManyField(
+        Permission,
+        blank=True,
+        related_name="users",
     )
 
     objects = UserManager()
+
     USERNAME_FIELD = "phone"
 
     class Meta:
         db_table = "users_user"
         verbose_name = "User"
         verbose_name_plural = "Users"
-        app_label = "users"   # ✅ REQUIRED FIX (DO NOT REMOVE)
+        app_label = "users"  # ✅ DO NOT REMOVE
 
     def __str__(self):
         return f"{self.phone} ({self.role})"
@@ -101,8 +112,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 # ============================================================
 
 class OTP(models.Model):
-    """One-Time Password for authentication."""
-
     phone = models.CharField(max_length=15, db_index=True)
     code_hash = models.CharField(max_length=64)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -112,10 +121,8 @@ class OTP(models.Model):
 
     class Meta:
         db_table = "users_otp"
-        verbose_name = "OTP"
-        verbose_name_plural = "OTPs"
         ordering = ["-created_at"]
-        app_label = "users"   # ✅ REQUIRED
+        app_label = "users"
 
     @classmethod
     def generate_code(cls):
@@ -132,8 +139,6 @@ class OTP(models.Model):
 
 
 class OTPRateLimit(models.Model):
-    """Rate limiting for OTP requests."""
-
     phone = models.CharField(max_length=15, db_index=True)
     ip_address = models.GenericIPAddressField(db_index=True)
     request_count = models.PositiveIntegerField(default=0)
@@ -145,9 +150,7 @@ class OTPRateLimit(models.Model):
     class Meta:
         db_table = "users_otp_ratelimit"
         unique_together = ("phone", "ip_address")
-        verbose_name = "OTP Rate Limit"
-        verbose_name_plural = "OTP Rate Limits"
-        app_label = "users"   # ✅ REQUIRED
+        app_label = "users"
 
 
 # ============================================================
@@ -155,8 +158,6 @@ class OTPRateLimit(models.Model):
 # ============================================================
 
 class CoachVerificationRequest(models.Model):
-    """Coach verification request for platform credibility."""
-
     class Status(models.TextChoices):
         DRAFT = "draft", "Draft"
         PENDING = "pending", "Pending"
@@ -180,8 +181,7 @@ class CoachVerificationRequest(models.Model):
 
     class Meta:
         db_table = "users_coach_verification_request"
-        ordering = ["-created_at"]
-        app_label = "users"   # ✅ REQUIRED
+        app_label = "users"
         constraints = [
             models.UniqueConstraint(
                 fields=["user"],
@@ -212,8 +212,7 @@ class VerificationDocument(models.Model):
 
     class Meta:
         db_table = "users_verification_document"
-        ordering = ["-uploaded_at"]
-        app_label = "users"   # ✅ REQUIRED
+        app_label = "users"
 
 
 class VerificationStatusLog(models.Model):
@@ -228,5 +227,4 @@ class VerificationStatusLog(models.Model):
 
     class Meta:
         db_table = "users_verification_status_log"
-        ordering = ["-changed_at"]
-        app_label = "users"   # ✅ REQUIRED
+        app_label = "users"

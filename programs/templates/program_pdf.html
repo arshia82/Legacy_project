@@ -1,0 +1,142 @@
+<!-- FILE: myfita/apps/backend/programs/templates/program_pdf.html -->
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ program_title }} - MY-FITA</title>
+</head>
+<body>
+    <!-- Watermark -->
+    <div class="watermark">{{ watermark_text }}</div>
+    
+    <!-- Header -->
+    <header>
+        <h1>{{ program_title }}</h1>
+        <p><strong>مربی:</strong> {{ coach_name }}</p>
+        <p><strong>مدت برنامه:</strong> {{ program_duration }}</p>
+        <p><strong>سطح:</strong> {{ program_difficulty }}</p>
+    </header>
+    
+    <!-- Description -->
+    <section>
+        <h2>توضیحات برنامه</h2>
+        <p>{{ program_description }}</p>
+    </section>
+    
+    <!-- Weekly Schedule -->
+    {% if weeks %}
+    <section>
+        <h2>برنامه هفتگی</h2>
+        {% for week in weeks %}
+        <div class="week-section">
+            <h3>هفته {{ forloop.counter }}</h3>
+            
+            {% for day in week.days %}
+            <div class="day">
+                <h4>{{ day.name }}</h4>
+                
+                {% if day.exercises %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>تمرین</th>
+                            <th>ست</th>
+                            <th>تکرار</th>
+                            <th>استراحت</th>
+                            <th>توضیحات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for exercise in day.exercises %}
+                        <tr>
+                            <td>{{ exercise.name }}</td>
+                            <td>{{ exercise.sets }}</td>
+                            <td>{{ exercise.reps }}</td>
+                            <td>{{ exercise.rest }}</td>
+                            <td>{{ exercise.notes }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>روز استراحت</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+    
+    <!-- Exercises List -->
+    {% if exercises %}
+    <section>
+        <h2>لیست تمرینات</h2>
+        {% for exercise in exercises %}
+        <div class="exercise">
+            <h4>{{ exercise.name }}</h4>
+            <p><strong>گروه عضلانی:</strong> {{ exercise.muscle_group }}</p>
+            {% if exercise.description %}
+            <p>{{ exercise.description }}</p>
+            {% endif %}
+            {% if exercise.video_url %}
+            <p><strong>ویدیو آموزشی:</strong> {{ exercise.video_url }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+    
+    <!-- Nutrition -->
+    {% if nutrition %}
+    <section>
+        <h2>برنامه تغذیه</h2>
+        
+        {% if nutrition.daily_calories %}
+        <p><strong>کالری روزانه:</strong> {{ nutrition.daily_calories }} کالری</p>
+        {% endif %}
+        
+        {% if nutrition.macros %}
+        <p><strong>ماکروها:</strong></p>
+        <ul>
+            <li>پروتئین: {{ nutrition.macros.protein }}g</li>
+            <li>کربوهیدرات: {{ nutrition.macros.carbs }}g</li>
+            <li>چربی: {{ nutrition.macros.fat }}g</li>
+        </ul>
+        {% endif %}
+        
+        {% if nutrition.meals %}
+        <h3>وعده‌های غذایی</h3>
+        {% for meal in nutrition.meals %}
+        <div class="meal">
+            <h4>{{ meal.name }}</h4>
+            <p>{{ meal.description }}</p>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </section>
+    {% endif %}
+    
+    <!-- Notes -->
+    {% if notes %}
+    <section>
+        <h2>نکات مهم</h2>
+        <p>{{ notes }}</p>
+    </section>
+    {% endif %}
+    
+    <!-- Footer -->
+    <footer>
+        <hr>
+        <p>
+            <small>
+                این برنامه به صورت اختصاصی برای <strong>{{ athlete_name }}</strong> تهیه شده است.
+                <br>
+                شناسه خرید: {{ purchase_id }} | تاریخ: {{ purchase_date }}
+                <br>
+                تولید شده توسط {{ platform_name }} | {{ platform_url }}
+            </small>
+        </p>
+    </footer>
+</body>
+</html>
