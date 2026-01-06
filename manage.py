@@ -6,6 +6,8 @@ from pathlib import Path
 import os
 import sys
 from pathlib import Path
+import sys
+sys.path.insert(0, r'D:\Startup\My-FitA\Legacy-project\myfita\apps\backend')
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent.parent  # points to Legacy-project/myfita

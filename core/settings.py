@@ -49,7 +49,9 @@ INSTALLED_APPS = [
     "users.apps.UsersConfig",
     "billing.apps.BillingConfig",
     "program_delivery",
-    "programs",
+    "programs.apps.ProgramsConfig",  # ← ADD .apps.ProgramsConfig HERE (this is the fix)
+
+    #"programs",
     "program_presets",
     
     # --- ADDED: New apps for matching and search ---

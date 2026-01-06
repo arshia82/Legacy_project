@@ -7,7 +7,4 @@ class ProgramsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'programs'
     verbose_name = 'Programs & Purchases'
-
-    def ready(self):
-        # Import signals if needed
-        pass
+    
